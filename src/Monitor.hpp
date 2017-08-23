@@ -31,7 +31,7 @@ private:
     
     int index_;
     int buffer_size_;
-    float delay_sec_;
+    float delay_millisec_;
     bool wakeup_;
     boost::thread delay_thread_;
     

@@ -8,15 +8,15 @@
 
 #include "Monitor.hpp"
 
-boost::shared_ptr<Monitor> Monitor::create(float delay_sec, int buffer_size)
+boost::shared_ptr<Monitor> Monitor::create(float delay_millisec, int buffer_size)
 {
-    return boost::shared_ptr<Monitor>(new Monitor(delay_sec, buffer_size));
+    return boost::shared_ptr<Monitor>(new Monitor(delay_millisec, buffer_size));
 }
 
 Monitor::Monitor(float delay_sec, int buffer_size)
 {
     index_ = 0;
-    delay_sec_ = delay_sec;
+	delay_millisec_ = delay_sec;
     wakeup_ = false;
     buffer_size_ = buffer_size;
 }
@@ -37,14 +37,14 @@ int Monitor::get_index()
 
 void Monitor::StartDisplay()
 {
-    delay_thread_ = boost::thread(boost::bind(&Monitor::DelayTask,shared_from_this(), delay_sec_));
+    delay_thread_ = boost::thread(boost::bind(&Monitor::DelayTask,shared_from_this(), delay_millisec_));
     delay_thread_.detach();
 }
 
-void Monitor::DelayTask(float delay_sec)
+void Monitor::DelayTask(float delay_millisec)
 {
-    if(delay_sec > 0){
-        boost::this_thread::sleep(boost::posix_time::seconds(delay_sec));
+    if(delay_millisec > 0){
+        boost::this_thread::sleep(boost::posix_time::milliseconds(delay_millisec));
         wakeup_ = true;
     }
     else

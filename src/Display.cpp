@@ -8,20 +8,16 @@
 
 #include "Display.hpp"
 
-Display::Display(int monitor_count, float delay_second)
+Display::Display(int monitor_count, float delay_millisec)
 {
     index_ = 0;
-    videoCapture_ = cv::VideoCapture(0);
-    //videoCapture_.set(CV_CAP_PROP_FOURCC, CV_FOURCC('M', 'J', 'P', 'G'));
-    //videoCapture_.set(CV_CAP_PROP_FPS, 60);
-    //videoCapture_.set(CV_CAP_PROP_CONVERT_RGB, false);
-    //videoCapture_.set(CV_CAP_PROP_FRAME_WIDTH, 128);
-    //videoCapture_.set(CV_CAP_PROP_FRAME_HEIGHT, 72);
+    videoCapture_ = cv::VideoCapture("video.mp4");
+	//videoCapture_.set(CV_CAP_PROP_FPS, 30);
     monitor_count_ = monitor_count;
-    delay_second_ = delay_second;
     isComposeUpdate_ = false;
+	isClosed_ = false;
     for (int i = 0; i < monitor_count; i++){
-        monitors_.push_back(Monitor::create(delay_second * i, buffer_.size()));
+        monitors_.push_back(Monitor::create(delay_millisec * i, buffer_.size()));
     }
     
     
@@ -29,10 +25,9 @@ Display::Display(int monitor_count, float delay_second)
 
 Display::~Display()
 {
-    videoCapture_.release();
     update_frame_thread_.interrupt();
     update_frame_thread_.join();
-
+	videoCapture_.release();
 }
 
 void Display::Start()
@@ -42,9 +37,19 @@ void Display::Start()
     update_frame_thread_ = boost::thread(boost::bind(&Display::UpdateFrameTask, this));
 }
 
+void Display::Close() 
+{
+	isClosed_ = true;
+}
+
 bool Display::isComposeUpdate()
 {
     return isComposeUpdate_;
+}
+
+bool Display::isClosed() 
+{
+	return isClosed_;
 }
 
 cv::Mat Display::getResult()
@@ -58,14 +63,21 @@ void Display::UpdateFrameTask()
     while(true){
         try{
             boost::mutex::scoped_lock(compose_mutex_);
+			//boost::this_thread::sleep(boost::posix_time::millisec(100));
             cv::Mat frame;
             videoCapture_ >> frame;
-            //cv::resize(frame, frame, cv::Size(frame.cols*0.1,frame.rows*0.1));
+			if (frame.empty()) {
+				Close();
+				break;
+			}
+            cv::resize(frame, frame, cv::Size(frame.cols*0.2, frame.rows*0.2));
             buffer_[index_] = frame.clone();
             index_ = (index_ + 1) % buffer_.size();
             
             //compose each window to composeMap for synchronize with videoCapture.
             ComposeBuffer();
+
+			cv::waitKey(33);
         }
         catch(boost::thread_interrupted&){
             std::cout << "stop videocapture thread" << std::endl;
@@ -78,11 +90,16 @@ void Display::ComposeBuffer()
 {
     std::cout << "buffer idx: " << index_ << std::endl;
     std::vector<cv::Mat> images;
+	
     for (int i=0; i<monitors_.size(); i++){
         int tmp = monitors_[i]->get_index();
         std::cout << tmp << std::endl;
         images.push_back(buffer_[tmp]);
-    }
+		cv::Mat gap = cv::Mat::zeros(buffer_[tmp].rows, 10, CV_8UC3);
+		images.push_back(gap);
+	}
+	std::reverse(images.begin(), images.end());
     cv::hconcat(images, composeMap);
+
     isComposeUpdate_ = true;
 }
